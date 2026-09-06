@@ -1,0 +1,24 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management # oficial image with admin panel
+    container_name: marketplace-rabbitmq
+    environment:
+      # Default credentials (change in prod)
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    ports:
+      - "5672:5672" # AMQP port - comunication port
+      - "15672:15672" # management UI - web administration panel
+    volumes:
+      # data persistence RabbitMQ
+      - rabbitmq_data:/var/lib/rabbitmq
+    # restart if goes down
+    restart: unless-stopped
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  rabbitmq_data:
