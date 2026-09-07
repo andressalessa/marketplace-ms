@@ -4,6 +4,8 @@
 **/build/
 **/.next/
 **/coverage/
+*.tsbuildinfo
+**/*.tsbuildinfo
 
 # Logs
 **/logs/

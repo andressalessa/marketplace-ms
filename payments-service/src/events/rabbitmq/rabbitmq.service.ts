@@ -163,7 +163,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       await this.channel.consume(queue.queue, async (msg) => {
         if (msg) {
           try {
-            const message: unknown = JSON.stringify(msg.content.toString());
+            const message: unknown = JSON.parse(msg.content.toString());
             this.logger.log(`📨 Message received from queue: ${queueName}`);
             this.logger.debug(`Message content: ${JSON.stringify(message)}`);
             await callback(message);
