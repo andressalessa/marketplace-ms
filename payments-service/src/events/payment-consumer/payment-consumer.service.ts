@@ -27,9 +27,10 @@ export class PaymentConsumerService implements OnModuleInit {
         this.logger.error(
           '❌ Could not connect to RabbitMQ after multiple attempts',
         );
-        return;
       }
 
+      // register callback to process each message
+      // bind(this) assures the availability of this inside callback
       await this.paymentQueueService.consumePaymentOrders(
         this.processPaymentOrder.bind(this),
       );
@@ -53,8 +54,8 @@ export class PaymentConsumerService implements OnModuleInit {
 
       if (!this.validateMessage(message)) {
         this.logger.error('❌ Invalid payment message received');
-        // reject the message to stop process
-        return;
+        // reject the message to stop process and send to DLQ
+        throw new Error('Invalid payment message received');
       }
 
       // TODO: to process payment using PaymentsService

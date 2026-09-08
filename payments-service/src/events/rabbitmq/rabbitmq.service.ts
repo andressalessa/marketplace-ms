@@ -149,12 +149,34 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      // 3 types of exchanges: direct | topic | fanout
+      // Explain: https://www.youtube.com/watch?v=2YWHtbZJ0QI
       await this.channel.assertExchange(exchange, 'topic', { durable: true });
+
+      const dlxExchange = `${exchange}.dlx`;
+      await this.channel.assertExchange(dlxExchange, 'topic', {
+        durable: true,
+      });
+
+      const dlqName = `${queueName}.dlq`;
+      await this.channel.assertQueue(dlqName, {
+        durable: true,
+        arguments: {
+          'x-message-ttl': 604800000, // 7 days to analyse
+        },
+      });
+
+      const routingKeyDlq = `${routingKey}.dead`;
+      await this.channel.bindQueue(dlqName, dlxExchange, routingKeyDlq);
+
+      // on the main queue we send the dlq params
       const queue = await this.channel.assertQueue(queueName, {
         durable: true,
         arguments: {
           'x-message-ttl': 86400000,
           'x-max-length': 10000,
+          'x-dead-letter-exchange': dlxExchange,
+          'x-dead-letter-routing-key': routingKeyDlq,
         },
       });
 
@@ -175,7 +197,10 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
             );
           } catch (error) {
             this.logger.error(`❌ Error processing message:`, error);
-            this.channel.nack(msg, false, false); // rejects message (in prod send to DLQ)
+            // (message, allUpTo, requeue)
+            // requeue: true when it should re-send to main queue | false: not to send back to main queue
+            this.channel.nack(msg, false, false); // rejects message
+            this.logger.warn(`⚠️ Message sent to SQL: ${dlqName}`);
           }
         }
       });
