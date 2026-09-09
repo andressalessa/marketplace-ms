@@ -168,8 +168,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
 
     try {
       if (!this.channel) {
-        this.logger.warn('⚠️ RabbitMQ channel is not available.');
-        return;
+        throw new Error('RabbitMQ channel not available');
       }
 
       // 3 types of exchanges: direct | topic | fanout
@@ -196,7 +195,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      const routingKeyDlq = `${routingKey}.dead`;
+      const routingKeyDlq = `${routingKey}.dlq`;
       await this.channel.bindQueue(dlqName, dlxExchange, routingKeyDlq);
 
       // End DQL
@@ -316,18 +315,18 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-/*
-// Header x-death adicionado automaticamente pelo RabbitMQ
-{
-  "x-death": [
-    {
-      "count": 3,           // ← Número de vezes que foi rejeitada
-      "reason": "rejected",
-      "queue": "payment_queue",
-      "time": 1737241200,
-      "exchange": "payments.retry.dlx",
-      "routing-keys": ["payment.order.retry"]
-    }
-  ]
-}
-*/
+// /*
+// // Header x-death adicionado automaticamente pelo RabbitMQ
+// {
+//   "x-death": [
+//     {
+//       "count": 3,           // ← Número de vezes que foi rejeitada
+//       "reason": "rejected",
+//       "queue": "payment_queue",
+//       "time": 1737241200,
+//       "exchange": "payments.retry.dlx",
+//       "routing-keys": ["payment.order.retry"]
+//     }
+//   ]
+// }
+// */
