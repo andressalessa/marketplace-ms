@@ -111,7 +111,7 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      //   topic: allows complex routing with patterns
+      // topic: allows complex routing with patterns
       // durable: survive any restarts on rabbitmq
       await this.channel.assertExchange(exchange, 'topic', { durable: true });
       const messageBuffer = Buffer.from(JSON.stringify(message));
