@@ -38,7 +38,6 @@ export class DlqService {
   /**
    * Obtém estatísticas da DLQ
    */
-
   async getStats(): Promise<DLQStats> {
     const channel = this.rabbitmqService.getChannel();
     if (!channel) {

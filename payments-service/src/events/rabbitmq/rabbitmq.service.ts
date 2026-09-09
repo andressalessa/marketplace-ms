@@ -137,12 +137,35 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Workflow
+   *
+   *             [ payments.order ]
+   *                     │
+   *                     │ NACK
+   *                     ▼
+   *             ┌───────────────────────┐
+   *             │ payments.order.retry  │ ───( retry 3x )───► [ payments.order ]
+   *             └───────────────────────┘
+   *                     │
+   *                     │ (after 3 retries)
+   *                     ▼
+   *             [ payments.order.dlq ]
+   *
+   */
   async subscribeToQueue(
     queueName: string,
     exchange: string,
     routingKey: string,
     callback: (message: unknown) => Promise<void> | void,
+    options: {
+      maxRetries?: number;
+      retryDelayMs?: number;
+    } = {},
   ): Promise<void> {
+    const maxRetries = options.maxRetries ?? 3;
+    const retryDelayMs = options.retryDelayMs ?? 30000; // 30 seconds
+
     try {
       if (!this.channel) {
         this.logger.warn('⚠️ RabbitMQ channel is not available.');
@@ -152,6 +175,13 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       // 3 types of exchanges: direct | topic | fanout
       // Explain: https://www.youtube.com/watch?v=2YWHtbZJ0QI
       await this.channel.assertExchange(exchange, 'topic', { durable: true });
+
+      const retryExchange = `${exchange}.retry.dlx`;
+      await this.channel.assertExchange(retryExchange, 'topic', {
+        durable: true,
+      });
+
+      // Begin DQL
 
       const dlxExchange = `${exchange}.dlx`;
       await this.channel.assertExchange(dlxExchange, 'topic', {
@@ -169,14 +199,40 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
       const routingKeyDlq = `${routingKey}.dead`;
       await this.channel.bindQueue(dlqName, dlxExchange, routingKeyDlq);
 
+      // End DQL
+
+      // Begin retry configs
+      const routingKeyRetry = `${routingKey}.retry`;
+
+      const retryQueueName = `${queueName}.retry`;
+      await this.channel.assertQueue(retryQueueName, {
+        durable: true,
+        arguments: {
+          'x-message-ttl': retryDelayMs, // time waiting before retry
+          // When TTL expires, goes back to main exchange
+          'x-dead-letter-exchange': exchange,
+          'x-dead-letter-routing-key': routingKey,
+        },
+      });
+
+      await this.channel.bindQueue(
+        retryQueueName,
+        retryExchange,
+        routingKeyRetry,
+      );
+
+      // End retry configs
+
+      // main queue
       // on the main queue we send the dlq params
       const queue = await this.channel.assertQueue(queueName, {
         durable: true,
         arguments: {
           'x-message-ttl': 86400000,
           'x-max-length': 10000,
-          'x-dead-letter-exchange': dlxExchange,
-          'x-dead-letter-routing-key': routingKeyDlq,
+          // now, the main queue sends fail messages to retry exchange
+          'x-dead-letter-exchange': retryExchange,
+          'x-dead-letter-routing-key': routingKeyRetry,
         },
       });
 
@@ -188,28 +244,90 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
             const message: unknown = JSON.parse(msg.content.toString());
             this.logger.log(`📨 Message received from queue: ${queueName}`);
             this.logger.debug(`Message content: ${JSON.stringify(message)}`);
+
+            const retryCount = this.getRetryCount(msg);
+
+            this.logger.log(
+              `📨 Message received (attempt ${retryCount + 1}/${maxRetries + 1})`,
+            );
+
             await callback(message);
 
-            this.channel.ack(msg); // removes msg from channel (accept message)
+            this.channel.ack(msg);
 
             this.logger.log(
               `✅ Message processed succesfully from queue: ${queueName}`,
             );
           } catch (error) {
-            this.logger.error(`❌ Error processing message:`, error);
-            // (message, allUpTo, requeue)
-            // requeue: true when it should re-send to main queue | false: not to send back to main queue
-            this.channel.nack(msg, false, false); // rejects message
-            this.logger.warn(`⚠️ Message sent to SQL: ${dlqName}`);
+            const retryCount = this.getRetryCount(msg);
+            if (retryCount < maxRetries) {
+              this.logger.warn(
+                `⚠️ Processing failed (attempt ${retryCount + 1}/${maxRetries + 1}). ` +
+                  `Retrying in ${retryDelayMs / 1000}s...`,
+              );
+              this.channel.nack(msg, false, false);
+            } else {
+              this.logger.error(
+                `💀 Max retries (${maxRetries}) exceeded. Sending to DLQ.`,
+              );
+              // Publica diretamente na DLQ (bypass da retry queue)
+              this.channel.publish(
+                dlxExchange,
+                `${routingKey}.dlq`,
+                msg.content,
+                { persistent: true, headers: msg.properties.headers },
+              );
+              this.channel.ack(msg); // Remove da fila principal
+            }
           }
         }
       });
 
+      this.logger.log(`✅ Subscribed to queue: ${queueName}`);
       this.logger.log(
-        `✅ Subscribed to queue: ${queueName} with routing key: ${routingKey}`,
+        `🔄 Retry queue: ${retryQueueName} (${retryDelayMs}ms delay)`,
       );
+      this.logger.log(`💀 Dead letter queue: ${dlqName}`);
     } catch (error) {
-      this.logger.error(`❌ Error to subscribe to queue: ${queueName}`, error);
+      this.logger.error(`❌ Error subscribing to queue ${queueName}:`, error);
     }
   }
+
+  /**
+   * Extrai o número de retries do header x-death
+   * O RabbitMQ adiciona esse header automaticamente
+   */
+  private getRetryCount(msg: amqp.ConsumeMessage): number {
+    const xDeath = msg.properties.headers?.['x-death'] as
+      | Array<{
+          count: number;
+          queue: string;
+        }>
+      | undefined;
+
+    if (!xDeath || xDeath.length === 0) {
+      return 0;
+    }
+
+    // Soma todas as vezes que passou pela fila principal
+    return xDeath
+      .filter((death) => !death.queue.endsWith('.retry'))
+      .reduce((sum, death) => sum + (death.count || 0), 0);
+  }
 }
+
+/*
+// Header x-death adicionado automaticamente pelo RabbitMQ
+{
+  "x-death": [
+    {
+      "count": 3,           // ← Número de vezes que foi rejeitada
+      "reason": "rejected",
+      "queue": "payment_queue",
+      "time": 1737241200,
+      "exchange": "payments.retry.dlx",
+      "routing-keys": ["payment.order.retry"]
+    }
+  ]
+}
+*/
