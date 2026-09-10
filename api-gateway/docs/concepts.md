@@ -46,3 +46,8 @@ Command query responsability segregation
 |           | | |  leitura  | - foco em velocidade -> noSQL (dados desnormalizados)
 |___________| | |___________|
 ```
+
+# Fluxo de desenvolvimento
+    requisitos funcionais -> kick-off -> requisitos técnicos -> divisão de tarefas -> desenvolvimento -> testes -> entrega
+
+## SDD -> spec driven design
