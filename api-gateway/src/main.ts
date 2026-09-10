@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -13,7 +14,7 @@ async function bootstrap() {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgtSrc: ["'self'", 'data', 'https'],
+          imgSrc: ["'self'", 'data:', 'https:'],
         },
       },
       crossOriginEmbedderPolicy: false,
@@ -25,7 +26,7 @@ async function bootstrap() {
         preload: true,
       },
     }),
-  ); // security
+  );
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -50,7 +51,7 @@ async function bootstrap() {
       'Access-Control-Request-Headers',
     ],
     credentials: true,
-    maxAge: 86400, // 24h
+    maxAge: 86400, // 24 hours
   });
 
   app.useGlobalPipes(
@@ -65,17 +66,17 @@ async function bootstrap() {
     .setTitle('Marketplace API Gateway')
     .setDescription(
       `
-      API Gateway para o sistema de Marketplace com microserviços
+    API Gateway para o sistema de Marketplace com microserviços.
 
-      Serviços Disponíveis:
-      - Users Service: Autenticação e gestão de usuários
-      - Products Service: Catálogo e gestão de produtos
-      - Checkout Service: Carrinho e processamento de pedidos
-      - Payments Service: Processamento de pagamentos
+    Serviços Disponíveis:
+    - Users Service**: Autenticação e gestão de usuários
+    - Products Service**: Catálogo e gestão de produtos
+    - Checkout Service**: Carrinho e processamento de pedidos
+    - Payments Service**: Processamento de pagamentos
 
-      Autenticação:
-      - Use JWT Bearer token para rotas protegidas
-      - Use Session token para validação de sessão
+    Autenticação:
+    - Use JWT Bearer token para rotas protegidas
+    - Use Session token para validação de sessão
     `,
     )
     .setVersion('1.0')
@@ -119,14 +120,15 @@ async function bootstrap() {
     customSiteTitle: 'Marketplace API Gateway Documentation',
     customCss: `
       .swagger-ui .topbar { display: none }
-      .swagger-ui .info .title { color: #3b82f6 }
+      .swagger-ui .info .title { color: #3b82f6; }
     `,
   });
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3005;
   await app.listen(port);
 
   console.log(`🚀 API Gateway running on port ${port}`);
-  console.log(`📚 Swagger documentation: http://localhost:${port}/api`);
+  console.log(`📚 Swagger documentation: <http://localhost>:${port}/api`);
 }
+
 bootstrap();
