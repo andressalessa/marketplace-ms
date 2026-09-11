@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { ProxyService } from '../proxy/service/proxy.service';
 import { JwtAuthGuard } from '../guards/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ServicesEnum } from '../common/enums/services.enum';
 
 @ApiTags('Users')
 @Controller('users')
@@ -16,7 +17,7 @@ export class UsersProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'users',
+      ServicesEnum.USERS,
       'GET',
       '/users/profile',
       undefined,
@@ -31,7 +32,7 @@ export class UsersProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'users',
+      ServicesEnum.USERS,
       'GET',
       '/users/sellers',
       undefined,
@@ -47,7 +48,7 @@ export class UsersProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'users',
+      ServicesEnum.USERS,
       'GET',
       `/users/${id}`,
       undefined,

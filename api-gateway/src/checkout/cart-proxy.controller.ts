@@ -12,6 +12,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { ProxyService } from '../proxy/service/proxy.service';
 import { JwtAuthGuard } from '../guards/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ServicesEnum } from '../common/enums/services.enum';
 
 @ApiTags('Cart')
 @Controller('cart')
@@ -26,7 +27,7 @@ export class CartProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'checkout',
+      ServicesEnum.CHECKOUT,
       'POST',
       '/cart/items',
       body,
@@ -41,7 +42,7 @@ export class CartProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'checkout',
+      ServicesEnum.CHECKOUT,
       'GET',
       '/cart',
       undefined,
@@ -57,7 +58,7 @@ export class CartProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'checkout',
+      ServicesEnum.CHECKOUT,
       'DELETE',
       `/cart/items/${itemId}`,
       undefined,

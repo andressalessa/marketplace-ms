@@ -11,6 +11,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { ProxyService } from '../proxy/service/proxy.service';
 import { JwtAuthGuard } from '../guards/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ServicesEnum } from '../common/enums/services.enum';
 
 @ApiTags('Products')
 @Controller('products')
@@ -25,7 +26,7 @@ export class ProductsController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'products',
+      ServicesEnum.PRODUCTS,
       'POST',
       '/products',
       body,
@@ -36,13 +37,17 @@ export class ProductsController {
 
   @Get()
   async findAll() {
-    return this.proxyService.proxyRequest('products', 'GET', '/products');
+    return this.proxyService.proxyRequest(
+      ServicesEnum.PRODUCTS,
+      'GET',
+      '/products',
+    );
   }
 
   @Get('seller/:sellerId')
   async findBySeller(@Param('sellerId') sellerId: string) {
     return this.proxyService.proxyRequest(
-      'products',
+      ServicesEnum.PRODUCTS,
       'GET',
       `/products/seller/${sellerId}`,
     );
@@ -50,6 +55,10 @@ export class ProductsController {
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return this.proxyService.proxyRequest('products', 'GET', `/products/${id}`);
+    return this.proxyService.proxyRequest(
+      ServicesEnum.PRODUCTS,
+      'GET',
+      `/products/${id}`,
+    );
   }
 }

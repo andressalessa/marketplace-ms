@@ -12,6 +12,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { ProxyService } from '../proxy/service/proxy.service';
 import { JwtAuthGuard } from '../guards/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ServicesEnum } from '../common/enums/services.enum';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -21,7 +22,7 @@ export class AuthProxyController {
   @Post('register')
   async register(@Body() body: any) {
     return this.proxyService.proxyRequest(
-      'users',
+      ServicesEnum.USERS,
       'POST',
       '/auth/register',
       body,
@@ -31,7 +32,12 @@ export class AuthProxyController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() body: any) {
-    return this.proxyService.proxyRequest('users', 'POST', '/auth/login', body);
+    return this.proxyService.proxyRequest(
+      ServicesEnum.USERS,
+      'POST',
+      '/auth/login',
+      body,
+    );
   }
 
   @Get('validate-token')
@@ -41,7 +47,7 @@ export class AuthProxyController {
     @CurrentUser() user: { userId: string; email: string; role: string },
   ) {
     return this.proxyService.proxyRequest(
-      'users',
+      ServicesEnum.USERS,
       'GET',
       '/auth/validate-token',
       undefined,
