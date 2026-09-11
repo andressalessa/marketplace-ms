@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PaymentQueueService } from '../payment-queue/payment-queue.service';
 import { PaymentOrderMessage } from '../payment-queue.interface';
 import { RabbitmqService } from '../rabbitmq/rabbitmq.service';
+import { PaymentsService } from '../../payments/payments.service';
+import { PaymentResultPublisherService } from '../payment-result/payment-result-publisher.service';
 
 export interface ConsumerMetrics {
   totalProcessed: number; // Total de mensagens processadas
@@ -44,6 +46,8 @@ export class PaymentConsumerService implements OnModuleInit {
   constructor(
     private readonly paymentQueueService: PaymentQueueService,
     private readonly rabbitMQService: RabbitmqService,
+    private readonly paymentsService: PaymentsService,
+    private readonly paymentResultPublisher: PaymentResultPublisherService,
   ) {}
 
   async onModuleInit() {
@@ -76,25 +80,28 @@ export class PaymentConsumerService implements OnModuleInit {
     }
   }
 
-  private processPaymentOrder(message: PaymentOrderMessage): void {
+  private async processPaymentOrder(
+    message: PaymentOrderMessage,
+  ): Promise<void> {
     const startTime = Date.now();
     try {
-      // usually its not common to use this type of log
-      //   it generates a huge volume
-      this.logger.log(
-        `📝 Processing payment order: ` +
-          `orderId=${message.orderId}, ` +
-          `userId=${message.userId}, ` +
-          `amount=${message.amount}`,
-      );
-
       if (!this.validateMessage(message)) {
         this.logger.error('❌ Invalid payment message received');
         // reject the message to stop process and send to DLQ
         throw new Error('Invalid payment message received');
       }
 
-      // TODO: to process payment using PaymentsService
+      const payment = await this.paymentsService.processPayment(message);
+
+      try {
+        await this.paymentResultPublisher.publishPaymentResult(payment);
+      } catch (publishError) {
+        this.logger.error(
+          `⚠️ Failed to publish payment result for orderId=${message.orderId}, payment is saved and can be queried via REST`,
+          publishError,
+        );
+      }
+
       this.logger.log('✅ Payment order received and validated');
       this.updateMetrics(true, startTime);
     } catch (error) {
